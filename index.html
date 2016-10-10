@@ -95,7 +95,7 @@ function resign() {
 }
 
 function gameOver() {
-	var loser = player === 'B' ? "blackPLayer" : "whitePlayer",
+	var loser = player === 'B' ? "blackPlayer" : "whitePlayer",
 		playerDiv = document.getElementById(loser);
 		
 	playerDiv.innerText += ' was checkmated';
@@ -185,20 +185,26 @@ function performAction(newMove) {
 	representationToHTML();
 	displayCapturedPieces();
 	switchPlayer();
-	runCheckAndCheckMateConditions();
+	checkAndCheckMateDisplays();
 }
 
-function runCheckAndCheckMateConditions() {
+function checkAndCheckMateDisplays() {
+	var whitePlayer = document.getElementById('whitePlayer'),
+		blackPlayer = document.getElementById('blackPlayer');
+		
 	if (isPlayerInCheckMate()){
-		gameOver();	
+		return gameOver();	
 	} else if (isPlayerInCheck()) {
 		if (player === 'W') {
-			document.getElementById('whitePlayer').innerText = "White is checked";
-			document.getElementById('blackPlayer').innerText = 'Black';
+			whitePlayer.innerText = "White is checked";
+			blackPlayer.innerText = 'Black';
 		} else {
-			document.getElementById('whitePlayer').innerText = 'White';
-			document.getElementById('blackPlayer').innerText = 'Black is checked';
+			whitePlayer.innerText = 'White';
+			blackPlayer.innerText = 'Black is checked';
 		}
+	} else {
+		whitePlayer.innerText = "White";
+		blackPlayer.innerText = "Black";
 	}
 }
 
