@@ -1,0 +1,584 @@
+<html>
+<head>
+	<title>
+	Chess
+	</title>
+</head>
+<body>
+	<div id="game">
+		<div id="boardContainer" class="center">
+			<table id="board">
+				<tbody>
+				</tbody>
+			</table>
+		</div>
+		<div id="menu">
+			<div id="buttonContainer">
+				<button id="playButton" onclick="newGame()">New Game</button>
+			</div>
+			<div id="blackArea">
+				<span id="blackPlayer">Black</span>
+				<div id="capturedWhite"></div>
+			</div>
+			<div id="whiteArea">
+				<span id="whitePlayer">White</span>
+				<div id="capturedBlack"></div>
+			</div>
+		</div>
+	</div>
+</body>
+</html>
+
+<script type="text/javascript">
+var player = '',
+	capturedPieces,
+	nameToHTML = {
+	"W_KING": "&#9812;",
+	"W_QUEEN": "&#9813;",
+	"W_ROOK": "&#9814;",
+	"W_BISHOP": "&#9815;",
+	"W_KNIGHT": "&#9816",
+	"W_PAWN": "&#9817;",
+	"B_KING": "&#9818;",
+	"B_QUEEN": "&#9819;",
+	"B_ROOK": "&#9820;",
+	"B_BISHOP": "&#9821;",
+	"B_KNIGHT": "&#9822;",
+	"B_PAWN": "&#9823;",
+	"": ""},
+	nameToFunction = {
+	"W_KING": KING,
+	"W_QUEEN": QUEEN,
+	"W_ROOK": ROOK,
+	"W_BISHOP": BISHOP,
+	"W_KNIGHT": KNIGHT,
+	"W_PAWN": PAWN,
+	"B_KING": KING,
+	"B_QUEEN": QUEEN,
+	"B_ROOK": ROOK,
+	"B_BISHOP": BISHOP,
+	"B_KNIGHT": KNIGHT,
+	"B_PAWN": PAWN,
+	"": ""},
+	board = document.getElementById('board'),
+	representation = [[]],
+	selectedPiece = undefined;
+	
+createBoard();
+initializeBoardPieces();
+	
+function newGame() {
+	player = 'W';
+	capturedPieces = [];
+	toggleClass(document.getElementById('whitePlayer'), 'playing');
+	initializeBoardPieces();
+	board.addEventListener('click', handleBoardClick);
+	
+	var button = document.getElementById('playButton');
+	button.onclick = resign;
+	button.innerText = "Resign";
+	
+	document.getElementById('whitePlayer').innerText = "White";
+	document.getElementById('blackPlayer').innerText = "Black";
+}
+
+function resign() {
+	player = '';
+	board.removeEventListener('click', handleBoardClick);
+	
+	var button = document.getElementById('playButton');
+	button.onclick = newGame;
+	button.innerText = "New Game";
+	
+	document.getElementById('whitePlayer').classList.remove('playing');
+	document.getElementById('blackPlayer').classList.remove('playing');
+}
+
+function gameOver() {
+	var loser = player === 'B' ? "blackPLayer" : "whitePlayer",
+		playerDiv = document.getElementById(loser);
+		
+	playerDiv.innerText += ' was checkmated';
+	resign();
+}
+
+function createBoard() {
+	var tbody = board.tBodies[0],
+		row,
+		column;
+	
+	for (row = 0; row < 8; row += 1) {
+		var trow = document.createElement('tr');
+		tbody.appendChild(trow);
+		for (column = 0; column < 8; column += 1) {
+			var td = document.createElement('td');
+			td.id = "row" + row + "column" + column;
+			td.className = "row" + row + " column" + column;
+			td.className += (row + column) % 2 ? " grey" : "";
+			trow.appendChild(td);
+		}
+	}
+}
+
+function initializeBoardPieces() {		
+	representation = [
+	["B_ROOK", "B_KNIGHT", "B_BISHOP", "B_QUEEN", "B_KING", "B_BISHOP", "B_KNIGHT", "B_ROOK"],
+	["B_PAWN", "B_PAWN", "B_PAWN", "B_PAWN", "B_PAWN", "B_PAWN", "B_PAWN", "B_PAWN"],
+	["", "", "", "", "", "", "", ""],
+	["", "", "", "", "", "", "", ""],
+	["", "", "", "", "", "", "", ""],
+	["", "", "", "", "", "", "", ""],
+	["W_PAWN", "W_PAWN", "W_PAWN", "W_PAWN", "W_PAWN", "W_PAWN", "W_PAWN", "W_PAWN"],
+	["W_ROOK", "W_KNIGHT", "W_BISHOP", "W_QUEEN", "W_KING", "W_BISHOP", "W_KNIGHT", "W_ROOK"]
+	];
+	
+	representationToHTML();
+}
+
+function getTableCell(row, column) {
+	var tbody = board.tBodies[0],
+		trow = tbody.rows[row];
+
+	return trow.cells[column];
+}
+
+function handleBoardClick(event) {
+	var target = event.target,
+		targetRow = getRow(target),
+		targetColumn = getColumn(target),
+		avaliableMoves,
+		attemptedMove;
+
+	if (targetRow === undefined || targetColumn === undefined) {
+		return;
+	}
+	
+	if (!selectedPiece && representation[targetRow][targetColumn].substring(0, 1) === player) {
+		//selected
+		selectedPiece = {};
+		selectedPiece.row = targetRow;
+		selectedPiece.column = targetColumn;
+		toggleClass(getTableCell(selectedPiece.row, selectedPiece.column), 'selected');
+	} else if (selectedPiece && targetRow === selectedPiece.row && targetColumn === selectedPiece.column) {
+		//deselected
+		toggleClass(getTableCell(selectedPiece.row, selectedPiece.column), 'selected');
+		selectedPiece = undefined;	
+	} else if (selectedPiece){
+		//attempt action
+		avaliableMoves = getMoves(selectedPiece.row, selectedPiece.column);
+		attemptedMove = {
+			origRow: selectedPiece.row,
+			origCol: selectedPiece.column,
+			row: getRow(target), 
+			column: getColumn(target)
+		};
+		if (isLegalMove(avaliableMoves, attemptedMove) && !isPlayerInCheck(attemptedMove)) {
+			toggleClass(getTableCell(selectedPiece.row, selectedPiece.column), 'selected');
+			performAction(attemptedMove);
+			selectedPiece = undefined;
+		}	
+	}
+}
+
+function performAction(newMove) {
+	move(newMove);
+	representationToHTML();
+	displayCapturedPieces();
+	switchPlayer();
+	runCheckAndCheckMateConditions();
+}
+
+function runCheckAndCheckMateConditions() {
+	if (isPlayerInCheckMate()){
+		gameOver();	
+	} else if (isPlayerInCheck()) {
+		if (player === 'W') {
+			document.getElementById('whitePlayer').innerText = "White is checked";
+			document.getElementById('blackPlayer').innerText = 'Black';
+		} else {
+			document.getElementById('whitePlayer').innerText = 'White';
+			document.getElementById('blackPlayer').innerText = 'Black is checked';
+		}
+	}
+}
+
+function switchPlayer() {	
+	player = player === "B" ? "W" : "B";
+	toggleClass(document.getElementById('whitePlayer'), 'playing');
+	toggleClass(document.getElementById('blackPlayer'), 'playing');
+}
+
+function toggleClass(el, name) {
+	var clist = el.classList;
+	if (clist.contains(name)) {
+		clist.remove(name);
+	} else {
+		clist.add(name);
+	}
+}
+
+function getRow(el) {
+	if (el.nodeName === "TD") {
+		return Number(el.id[3]);
+	} else if (el.getAttribute('chess')) {
+		return Number(el.parentNode.id[3]);
+	} else {
+		return undefined;
+	}
+}
+
+function getColumn(el) {
+	if (el.nodeName === "TD") {
+		return Number(el.id[10]);
+	} else if (el.getAttribute('chess')) {
+		return Number(el.parentNode.id[10]);
+	} else {
+		return undefined;
+	}
+}
+
+function getMoves(row, column) {
+	var piece,
+		color,
+		moves = [];
+		
+	piece = representation[row][column];
+	color = piece.substring(0, 1);
+	moves = nameToFunction[piece](row, column, color);
+	moves.forEach((move) => {
+		move.origRow = row;
+		move.origCol = column;
+	});
+	
+	return moves;
+}
+
+function findAllMoves(color) {
+	var row, column, allMoves = [];	
+	
+	for (row = 0; row < 8; row += 1) {
+		for (column = 0; column < 8; column += 1) {
+			if (representation[row][column].substring(0, 1) === color) {
+				allMoves = allMoves.concat(getMoves(row, column));
+			}
+		}
+	}
+	
+	return allMoves;
+}
+
+function findKing(color) {	
+	var row, column;
+	
+	for (row = 0; row < 8; row += 1) {
+		for (column = 0; column < 8; column += 1) {
+			if (representation[row][column] === color + "_KING") {
+				return {row: row, column: column};
+			}
+		}
+	}
+}
+
+function isPlayerInCheckMate() {
+	var allMoves = findAllMoves(player);
+	allMoves = allMoves.filter((move) => {
+		return !isPlayerInCheck(move);
+	});
+	return allMoves.length === 0;
+}
+
+//see if the enemy can capture the king
+//optional parameter newMove is intenteded to
+//try a move that might get one out of check
+//by simulating the move then running through all enemymoves
+//afterwards we'll undo what newMove did to the data
+//
+function isPlayerInCheck(newMove) {
+	var board,
+		enemyColor,
+		enemyMoves,
+		kingLocation,
+		check = false;
+		
+	copy = {representation: representation, capturedPieces: capturedPieces};
+	if (newMove) {
+		copy.representation = copyRepresentation();
+		copy.capturedPieces = copyCapturedPieces();
+		move(newMove);
+	}
+	kingLocation = findKing(player);
+	enemyColor = player === 'W' ? 'B' : 'W';
+	enemyMoves = findAllMoves(enemyColor);
+	enemyMoves.forEach((enemyMove) => {
+		if (enemyMove.row === kingLocation.row && enemyMove.column === kingLocation.column) {
+			check = true;
+		}
+	});
+	representation = copy.representation;
+	capturedPieces = copy.capturedPieces;
+	
+	return check;
+}
+
+function isLegalMove(avaliableMoves, attemptedMove) {
+	var i, 
+		possibleMove;
+	
+	//test attemptedMove makes directional/physical sense
+	for (i = 0; i < avaliableMoves.length; i += 1) {
+		possibleMove = avaliableMoves[i];
+		if (possibleMove.row === attemptedMove.row && possibleMove.column === attemptedMove.column) {
+			return true;
+		}
+	}
+
+	return false;
+}
+
+function copyRepresentation() {
+	var copy = [],
+		row, column;
+	
+	for (row = 0; row < 8; row += 1) {
+		copy[row] = [];
+		for (column = 0; column < 8; column += 1) {
+			copy[row][column] = representation[row][column];
+		}
+	}
+	
+	return copy;
+}
+
+function copyCapturedPieces() {
+	var copiedPieces = [];
+	capturedPieces.forEach((piece) => {
+		copiedPieces.push(piece);
+	});
+	return copiedPieces;
+}
+
+function PAWN(row, column, color) {
+	var moves = [],
+		step = color === "B" ? 1 : -1,
+		enemyColor = color === "B" ? "W" : "B",
+		startRow = color === "B" ? 1 : 6;
+		
+	//pawn is at the end of the board and needs to be promoted instead of make a move
+	if (row <= 0 || row >= 7) return [];
+	
+	//move the piece forward
+	if (representation[row + step][column] === "") {
+		moves.push({row: row + step, column: column});
+	}
+	//move the piece forward two steps, but only on first movement
+	if (row === startRow && representation[row + 2 * step][column] === '') {
+		moves.push({row: row + 2 * step, column: column});
+	}
+	//capture a piece left diagonal
+	if (column > 0 && representation[row + step][column - 1].substring(0, 1) === enemyColor) {
+		moves.push({row: row + step, column: column - 1});
+	}
+	//capture a piece right diagonal
+	if (column < 7 && representation[row + step][column + 1].substring(0, 1) === enemyColor) {
+		moves.push({row: row + step, column: column + 1});
+	}
+	
+	return moves;
+}
+
+function BISHOP(row, column, color) {
+	var directions = [
+		{left: -1, up: -1},
+		{left: -1, up: 1},
+		{left: 1, up: -1},
+		{left: 1, up: 1}];
+	
+	return directionMoveFinder(row, column, directions, color);
+}
+
+function directionMoveFinder(row, column, directions, color) {
+	var moves = [],
+		enemyColor = color === "B" ? "W" : "B";
+	
+	directions.forEach((d) => { direction(d.left, d.up, d.steps); });
+	
+	function direction(left, up, steps) {
+		//we keep moving in a direction until we can capture an enemy piece, go out of bounds, or run into our own pieces
+		//left: -1 is left, 1 is right
+		//up: -1 is up, 1 is down
+		
+		var i,
+			location,
+			steps = steps || 8;
+			
+		for (i = 1; i <= steps; i += 1) {
+			try {
+				location = representation[row + i * up][column + i * left];
+				if (location === '') {
+					moves.push({row: row + i * up, column: column + i * left});
+				} else if (location.substring(0, 1) === enemyColor) {
+					moves.push({row: row + i * up, column: column + i * left});
+					break;
+				} else {
+					break;
+				}
+			} catch (err) {
+				break;
+			}		
+		}
+	}
+	
+	return moves;
+}
+
+function ROOK(row, column, color) {
+	var directions = [
+		{left: -1, up: 0}, //left
+		{left: 1, up: 0}, //right
+		{left: 0, up: -1}, //up
+		{left: 0, up: 1} //down
+	];
+	
+	return directionMoveFinder(row, column, directions, color);
+}
+
+function KNIGHT(row, column, color) {
+	var directions = [
+		{left: -1, up: -2, steps: 1},
+		{left: -2, up: -1, steps: 1},
+		{left: 1, up: -2, steps: 1},
+		{left: 2, up: -1, steps: 1},
+		{left: -1, up: 2, steps: 1},
+		{left: -2, up: 1, steps: 1},
+		{left: 1, up: 2, steps: 1},
+		{left: 2, up: 1, steps: 1}
+	];
+		
+	return directionMoveFinder(row, column, directions, color);
+}
+
+
+function QUEEN(row, column, color) {
+	var moves = [];
+	//queen can move in any direction a rook or bishop can
+	moves = moves.concat(ROOK(row, column, color));
+	moves = moves.concat(BISHOP(row, column, color));
+	
+	return moves;
+}
+
+function KING(row, column, color) {
+	var directions = [
+		{left: -1, up: -1, steps: 1},
+		{left: 0, up: -1, steps: 1},
+		{left: 1, up: -1, steps: 1},
+		{left: -1, up: 0, steps: 1},
+		{left: 1, up: 0, steps: 1},
+		{left: -1, up: 1, steps: 1},
+		{left: 0, up: 1, steps: 1},
+		{left: 1, up: 1, steps: 1}
+	];
+	
+	return directionMoveFinder(row, column, directions, color);
+}
+
+function move(newMove) {
+	var location = representation[newMove.row][newMove.column];
+		
+	if (location.substring(0, 1) !== '') {
+		capturedPieces.push(location);
+	}
+	representation[newMove.row][newMove.column] = representation[newMove.origRow][newMove.origCol];
+	representation[newMove.origRow][newMove.origCol] = "";
+}
+
+function displayCapturedPieces() {
+	var i,
+		piece,
+		capturedWhiteArea = document.getElementById('capturedWhite'),
+		capturedBlackArea = document.getElementById('capturedBlack');
+	
+	capturedWhiteArea.innerHTML = '';
+	capturedBlackArea.innerHTML = '';
+	for (i = 0; i < capturedPieces.length; i += 1) {
+		piece = capturedPieces[i];
+		if (piece.substring(0, 1) === "W") {
+			capturedWhiteArea.innerHTML += nameToHTML[piece];
+		} else {
+			capturedBlackArea.innerHTML += nameToHTML[piece];
+		}
+	}
+}
+
+function representationToHTML() {
+	var row, column, piece, playable, chessHTML;
+	for (row = 0; row < 8; row += 1) {
+		for (column = 0; column < 8; column += 1) {
+			cell = getTableCell(row, column);
+			piece = representation[row][column];
+			//create html for chess piece
+			if (piece) {
+				cell.innerHTML = '<span chess="true">' + nameToHTML[piece] + '</span>';
+			} else {
+				cell.innerHTML = '';
+			}		
+		}
+	}
+}
+
+</script>
+<style type="text/css">
+	table {
+		border-spacing: 0pt;
+	}
+	td {
+		font-size: 250%;
+		text-align: center;
+		width: 50pt;
+		height: 50pt;
+	}
+	td.row0 {
+		border-top: 1pt solid grey;
+	}
+	td.row7 {
+		border-bottom: 1pt solid grey;
+	}
+	td.column0 {
+		border-left: 1pt solid grey;
+	}
+	td.column7 {
+		border-right: 1pt solid grey;
+	}
+	td.grey {
+		background-color: grey;
+	}
+	td.selected {
+		background-color: yellow;
+	}
+	#boardContainer {
+		horizontal-align: center;
+		display: inline-block;
+	}
+	#buttonContainer {
+		height: 20%;
+	}
+	button {
+		width: 100pt;
+		height: 50pt;
+	}
+	#menu {
+		vertical-align: top;
+		display: inline-block;
+		height: 400pt;
+	}
+	#blackArea {
+		height: 40%;
+	}
+	#whiteArea {
+		height: 40%;
+	}
+	.playing {
+		color: green;
+		font-weight: bold;
+	}
+</style>
