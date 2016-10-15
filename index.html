@@ -62,15 +62,21 @@ var player = '',
 	"": ""},
 	board = document.getElementById('board'),
 	representation = [[]],
-	selectedPiece = undefined;
+	selectedPiece = undefined,
+	whiteKingMoved = false,
+	blackKingMoved = false,
+	whiteRook1Moved = false,
+	whiteRook2Moved = false,
+	blackRook1Moved = false,
+	blackRook2Moved = false;
 	
 createBoard();
 initializeBoardPieces();
 	
 function newGame() {
 	player = 'W';
-	capturedPieces = [];
 	toggleClass(document.getElementById('whitePlayer'), 'playing');
+	clearState();
 	initializeBoardPieces();
 	board.addEventListener('click', handleBoardClick);
 	
@@ -146,7 +152,7 @@ function handleBoardClick(event) {
 	var target = event.target,
 		targetRow = getRow(target),
 		targetColumn = getColumn(target),
-		avaliableMoves,
+		availableMoves,
 		attemptedMove;
 
 	if (targetRow === undefined || targetColumn === undefined) {
@@ -165,19 +171,33 @@ function handleBoardClick(event) {
 		selectedPiece = undefined;	
 	} else if (selectedPiece){
 		//attempt action
-		avaliableMoves = getMoves(selectedPiece.row, selectedPiece.column);
+		availableMoves = getMoves(selectedPiece.row, selectedPiece.column);
 		attemptedMove = {
 			origRow: selectedPiece.row,
 			origCol: selectedPiece.column,
 			row: getRow(target), 
 			column: getColumn(target)
 		};
-		if (isLegalMove(avaliableMoves, attemptedMove) && !isPlayerInCheck(attemptedMove)) {
+		var moveToPerform = findMove(availableMoves, attemptedMove);
+		if (moveToPerform && !isPlayerInCheck(moveToPerform) && 
+				(!moveToPerform.isCastle || isLegalCastle(moveToPerform))) {
 			toggleClass(getTableCell(selectedPiece.row, selectedPiece.column), 'selected');
-			performAction(attemptedMove);
+			performAction(moveToPerform);
 			selectedPiece = undefined;
-		}	
+		}
 	}
+}
+
+function findMove(moves, moveToFind) {
+	var i, move;
+	for (i = 0; i < moves.length; i += 1) {
+		move = moves[i];
+		if (move.row === moveToFind.row && move.column === moveToFind.column
+			&& move.origRow === moveToFind.origRow && move.origCol === moveToFind.origCol) {
+			return move;
+		}
+	}
+	return undefined;
 }
 
 function performAction(newMove) {
@@ -304,12 +324,11 @@ function isPlayerInCheck(newMove) {
 		enemyColor,
 		enemyMoves,
 		kingLocation,
+		copy = {},
 		check = false;
 		
-	copy = {representation: representation, capturedPieces: capturedPieces};
 	if (newMove) {
-		copy.representation = copyRepresentation();
-		copy.capturedPieces = copyCapturedPieces();
+		copy = copyState();
 		move(newMove);
 	}
 	kingLocation = findKing(player);
@@ -320,25 +339,66 @@ function isPlayerInCheck(newMove) {
 			check = true;
 		}
 	});
-	representation = copy.representation;
-	capturedPieces = copy.capturedPieces;
+	if (newMove) {
+		setState(copy);
+	}
 	
 	return check;
 }
 
-function isLegalMove(avaliableMoves, attemptedMove) {
-	var i, 
-		possibleMove;
-	
-	//test attemptedMove makes directional/physical sense
-	for (i = 0; i < avaliableMoves.length; i += 1) {
-		possibleMove = avaliableMoves[i];
-		if (possibleMove.row === attemptedMove.row && possibleMove.column === attemptedMove.column) {
-			return true;
+function isLegalCastle(attemptedCastle) {
+	var middleMoveMapper = {
+		0: {
+			2: {origRow: 0, origCol: 4, row: 0, column: 3},
+			6: {origRow: 0, origCol: 4, row: 0, column: 5},
+		},
+		7: {
+			2: {origRow: 7, origCol: 4, row: 7, column: 3},	
+			6: {origRow: 7, origCol: 4, row: 7, column: 5},
 		}
+	},
+	middleMove = middleMoveMapper[attemptedCastle.row][attemptedCastle.column];
+	if (attemptedCastle.isCastle && !isPlayerInCheck() && !isPlayerInCheck(middleMove) && !isPlayerInCheck(attemptedCastle)) {
+		return true;
+	} else {
+		return false;
 	}
+}
 
-	return false;
+function copyState() {
+	var copy = {};
+	copy.representation = copyRepresentation();
+	copy.capturedPieces = copyCapturedPieces();
+	copy.whiteKingMoved = whiteKingMoved;
+	copy.blackKingMoved = blackKingMoved;
+	copy.whiteRook1Moved = whiteRook1Moved;
+	copy.whiteRook2Moved = whiteRook2Moved;
+	copy.blackRook1Moved = blackRook1Moved;
+	copy.blackRook2Moved = blackRook2Moved;
+	
+	return copy;
+}
+
+function setState(state) {
+	representation = state.representation;
+	capturedPieces = state.capturedPieces;
+	whiteKingMoved = state.whiteKingMoved;
+	blackKingMoved = state.blackKingMoved;
+	whiteRook1Moved = state.whiteRook1Moved;
+	whiteRook2Moved = state.whiteRook2Moved;
+	blackRook1Moved = state.blackRook1Moved;
+	blackRook2Moved = state.blackRook2Moved;
+}
+
+function clearState() {
+	representation = [];
+	clearCapturedPieces();
+	whiteKingMoved = false;
+	blackKingMoved = false;
+	whiteRook1Moved = false;
+	whiteRook2Moved = false;
+	blackRook1Moved = false;
+	blackRook2Moved = false;
 }
 
 function copyRepresentation() {
@@ -474,28 +534,91 @@ function QUEEN(row, column, color) {
 }
 
 function KING(row, column, color) {
-	var directions = [
-		{left: -1, up: -1, steps: 1},
-		{left: 0, up: -1, steps: 1},
-		{left: 1, up: -1, steps: 1},
-		{left: -1, up: 0, steps: 1},
-		{left: 1, up: 0, steps: 1},
-		{left: -1, up: 1, steps: 1},
-		{left: 0, up: 1, steps: 1},
-		{left: 1, up: 1, steps: 1}
-	];
+	var moves = [],
+		directions = [
+			{left: -1, up: -1, steps: 1},
+			{left: 0, up: -1, steps: 1},
+			{left: 1, up: -1, steps: 1},
+			{left: -1, up: 0, steps: 1},
+			{left: 1, up: 0, steps: 1},
+			{left: -1, up: 1, steps: 1},
+			{left: 0, up: 1, steps: 1},
+			{left: 1, up: 1, steps: 1}
+		];
 	
-	return directionMoveFinder(row, column, directions, color);
+	if (color === 'W' && !whiteKingMoved) {
+		if (!whiteRook1Moved && representation[7][1] === '' && representation[7][2] === '' && representation[7][3] === '') {
+			moves.push({row: 7, column: 2, isCastle: true});
+		}
+		if (!whiteRook2Moved && representation[7][5] === '' && representation[7][6] === '') {
+			moves.push({row: 7, column: 6, isCastle: true});
+		}
+	} else if (color === 'B' && !blackKingMoved) {
+		if (!blackRook1Moved && representation[0][1] === '' && representation[0][2] === '' && representation[0][3] === '') {
+			moves.push({row: 0, column: 2, isCastle: true});
+		}
+		if (!blackRook2Moved && representation[0][5] === '' && representation[0][6] === '') {
+			moves.push({row: 0, column: 6, isCastle: true});
+		}
+	}
+	
+	moves = moves.concat(directionMoveFinder(row, column, directions, color));
+	
+	return moves;
 }
 
 function move(newMove) {
-	var location = representation[newMove.row][newMove.column];
+	var origRow = newMove.origRow,
+		origCol = newMove.origCol,
+		destRow = newMove.row,
+		destCol = newMove.column,
+		destination = representation[destRow][destCol],
+		piece = representation[origRow][origCol];
 		
-	if (location.substring(0, 1) !== '') {
-		capturedPieces.push(location);
+	if (destination.substring(0, 1) !== '') {
+		capturedPieces.push(destination);
 	}
-	representation[newMove.row][newMove.column] = representation[newMove.origRow][newMove.origCol];
+	
 	representation[newMove.origRow][newMove.origCol] = "";
+	//promote pawns that make it to the otherside,
+	//otherwise just move the piece normally
+	if (piece === "B_PAWN" && destRow === 7) {
+		representation[destRow][destCol] = "B_QUEEN";
+	} else if (piece === "W_PAWN" && destRow === 0) {
+		representation[destRow][destCol] = "W_QUEEN";		
+	} else {
+		representation[destRow][destCol] = piece;
+	}
+	
+	//keep track of first time movements for pieces
+	//involved in castling
+	if (piece === "W_KNIGHT" && origRow === 7 && origCol === 0) {
+		whiteRook1Moved = true;
+	} else if (piece === "W_KNIGHT" && origRow === 7 && origCol === 7) {
+		whiteRook2Moved = true;
+	} else if (piece === "B_KNIGHT" && origRow === 0 && origCol === 0) {
+		blackRook1Moved = true;
+	} else if (piece === "B_KNIGHT" && origRow === 0 && origCol === 7) {
+		blackRook2Moved = true;
+	} else if (piece === "W_KING") {
+		whiteKingMoved = true;
+	} else if (piece === "B_KING") {
+		blackKingMoved = true;
+	}
+	
+	if (newMove.isCastle) {
+		var companionRookMove = {
+			0: {
+				2: {origRow: 0, origCol: 0, row: 0, column: 3},
+				6: {origRow: 0, origCol: 7, row: 0, column: 5},
+			},
+			7: {
+				2: {origRow: 7, origCol: 0, row: 7, column: 3},	
+				6: {origRow: 7, origCol: 7, row: 7, column: 5},
+			}
+		};
+		move(companionRookMove[destRow][destCol]);
+	}
 }
 
 function displayCapturedPieces() {
@@ -514,6 +637,12 @@ function displayCapturedPieces() {
 			capturedBlackArea.innerHTML += nameToHTML[piece];
 		}
 	}
+}
+
+function clearCapturedPieces() {
+	capturedPieces = [];
+	document.getElementById('capturedWhite').innerHTML = '';
+	document.getElementById('capturedBlack').innerHTML = '';
 }
 
 function representationToHTML() {
