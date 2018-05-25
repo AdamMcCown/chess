@@ -592,13 +592,13 @@ function move(newMove) {
 	
 	//keep track of first time movements for pieces
 	//involved in castling
-	if (piece === "W_KNIGHT" && origRow === 7 && origCol === 0) {
+	if (piece === "W_ROOK" && origRow === 7 && origCol === 0) {
 		whiteRook1Moved = true;
-	} else if (piece === "W_KNIGHT" && origRow === 7 && origCol === 7) {
+	} else if (piece === "W_ROOK" && origRow === 7 && origCol === 7) {
 		whiteRook2Moved = true;
-	} else if (piece === "B_KNIGHT" && origRow === 0 && origCol === 0) {
+	} else if (piece === "B_ROOK" && origRow === 0 && origCol === 0) {
 		blackRook1Moved = true;
-	} else if (piece === "B_KNIGHT" && origRow === 0 && origCol === 7) {
+	} else if (piece === "B_ROOK" && origRow === 0 && origCol === 7) {
 		blackRook2Moved = true;
 	} else if (piece === "W_KING") {
 		whiteKingMoved = true;
